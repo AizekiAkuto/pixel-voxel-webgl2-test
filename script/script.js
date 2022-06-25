@@ -153,7 +153,7 @@ const sprite3d = new Space.Sprite(space);
 sprite3d.graphic = graphic3d;
 
 // 位置調整
-sprite2d.translate(0, -3/4, 5);
+sprite2d.translate(0, -3/4, 2);
 sprite2d.scale(1/8, 1/8);
 
 sprite3d.translate(0, 0, 2);
