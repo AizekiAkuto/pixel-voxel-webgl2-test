@@ -10,7 +10,7 @@ const Screen = class
         const ctx = canvas.getContext("webgl2");
         this._ctx = ctx;
 
-        this.ratio = 1; //window.devicePixelRatio || 1;
+        this.ratio = window.devicePixelRatio || 1;
         this.clientWidth = window.innerWidth;
         this.clientHeight = window.innerHeight;
         this.physicalWidth = this.clientWidth * this.ratio;
