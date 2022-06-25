@@ -156,7 +156,7 @@ sprite3d.graphic = graphic3d;
 sprite2d.translate(0, -3/4, 5);
 sprite2d.scale(1/8, 1/8);
 
-sprite3d.translate(0, 0, 5);
+sprite3d.translate(0, 0, 2);
 sprite3d.scale(1/4, 1/4, 1/4);
 
 // 操作の変数
