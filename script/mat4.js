@@ -215,7 +215,7 @@ const Mat4 = class extends Float32Array
 
         this[ 8] = -(right + left) / (right - left);
         this[ 9] = -(top + bottom) / (top - bottom);
-        this[10] = -(far + near) / (far - near);
+        this[10] = (far + near) / (far - near);
         this[11] = 1;
 
         this[12] = 0;

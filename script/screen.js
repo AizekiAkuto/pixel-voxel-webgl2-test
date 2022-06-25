@@ -39,13 +39,19 @@ const Screen = class
         // ブレンド//////////////
         ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA);
         ctx.enable(ctx.BLEND);
-        ctx.frontFace(ctx.CCW);
+
+        // カリング
+        ctx.frontFace(ctx.CW);
         ctx.enable(ctx.CULL_FACE);
 
+        // 深度
+        ctx.enable(ctx.DEPTH_TEST);
+        ctx.depthFunc(ctx.LEQUAL);
+
         // タッチ入力
-        this._pointerX = -256;
-        this._pointerY = -256;
-        this._pointerDown = false;
+        this.pointerX = -256;
+        this.pointerY = -256;
+        this.pointerDown = false;
         document.addEventListener('pointerdown', this._pointerdown.bind(this));
         document.addEventListener('pointerup', this._pointerup.bind(this));
         document.addEventListener('pointermove', this._pointermove.bind(this));
@@ -90,8 +96,16 @@ const Screen = class
     // ポインターが動かされた
     _pointermove(e)
     {
-        this.pointerX = e.clientX;
-        this.pointerY = e.clientY;
+        if(this.clientWidth > this.clientHeight)
+        {
+            this.pointerX = (e.clientX / this.clientWidth * 2 - 1) * (this.clientWidth / this.clientHeight);;
+            this.pointerY = e.clientY / this.clientHeight * 2 - 1;
+        }
+        else
+        {
+            this.pointerX = e.clientX / this.clientWidth * 2 - 1;
+            this.pointerY = (e.clientY / this.clientHeight * 2 - 1) * (this.clientHeight / this.clientWidth);
+        }
     }
 
     // 画面幅が変えられた

@@ -16,7 +16,7 @@ const Space = class
         `#version 300 es
             layout (location = 0) in vec3 position;
             layout (location = 1) in vec3 coord3d;
-            out vec3 varCoord3d;
+            centroid out vec3 varCoord3d;
             uniform mat4 mvpMatrix;
             
             void main(void)
@@ -32,7 +32,7 @@ const Space = class
             precision mediump float;
             
             uniform sampler3D graphic;
-            in vec3 varCoord3d;
+            centroid in vec3 varCoord3d;
             out vec4 outColor;
             
             void main(void)
@@ -77,48 +77,6 @@ const Space = class
         this._mvpMatrixLocation = ctx.getUniformLocation(this._program, 'mvpMatrix');
         this._positionLocation = ctx.getAttribLocation(this._program, 'position');
         this._coordLocation = ctx.getAttribLocation(this._program, 'coord3d');
-        
-        // 画面幅の初期化
-        const r = this._ctx.canvas.height / this._ctx.canvas.width;
-        this.perspective = 
-        {
-            left : -1.0,
-            right : 1.0,
-            bottom : -r,
-            top : r,
-            near : -1.0,
-            far : 1.0,
-            ratio : 1.0,
-        };
-    }
-
-    // スプライト描画
-    drawSprite(sprite)
-    {
-        const ctx = this._ctx;
-
-        if(sprite.graphic != null)
-        {
-            ctx.activeTexture(ctx.TEXTURE0 + 0);
-            ctx.bindTexture(ctx.TEXTURE_3D, sprite.graphic._texture);
-            ctx.uniform1i(this.textureLocation, 0);
-        }
-        else return;
-        
-        if(ctx.getProgramParameter(this._program, ctx.LINK_STATUS)) ctx.useProgram(this._program);
-
-		ctx.uniformMatrix4fv(this._mvpMatrixLocation, false, sprite.mvpMatrix);
-
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, sprite._vbo);
-        
-        ctx.enableVertexAttribArray(this._positionLocation);
-        ctx.vertexAttribPointer(this._positionLocation, 3, ctx.FLOAT, false, (3 + 3) * 4, 0);
-        
-        ctx.enableVertexAttribArray(this._coordLocation);
-        ctx.vertexAttribPointer(this._coordLocation, 3, ctx.FLOAT, false, (3 + 3) * 4, 3 * 4);
-
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, sprite._ibo);
-        ctx.drawElements(ctx.TRIANGLES, 36, ctx.UNSIGNED_SHORT, 0);
     }
 };
 
@@ -133,75 +91,74 @@ const Sprite = class
         const ctx = space._ctx;
         this._ctx = ctx;
         this.graphic = null;
-        this.perspective = space.perspective;
 
         // 位置
         this.positionArray = 
         [
             // Front
             -1.0, -1.0, -1.0,
-             1.0, -1.0, -1.0,
-            -1.0,  1.0, -1.0, 
+            -1.0,  1.0, -1.0,
+             1.0, -1.0, -1.0, 
              1.0,  1.0, -1.0,
             // Back
+             1.0, -1.0,  1.0,
              1.0,  1.0,  1.0,
+            -1.0, -1.0,  1.0, 
             -1.0,  1.0,  1.0,
-             1.0, -1.0,  1.0, 
-            -1.0, -1.0,  1.0,
             // Left
             -1.0, -1.0,  1.0,
-            -1.0, -1.0, -1.0,
-            -1.0,  1.0,  1.0, 
+            -1.0,  1.0,  1.0,
+            -1.0, -1.0, -1.0, 
             -1.0,  1.0, -1.0,
             // Right
              1.0, -1.0, -1.0,
-             1.0, -1.0,  1.0,
-             1.0,  1.0, -1.0, 
+             1.0,  1.0, -1.0,
+             1.0, -1.0,  1.0, 
              1.0,  1.0,  1.0,
             // Bottom
+            -1.0, -1.0,  1.0,
             -1.0, -1.0, -1.0,
+             1.0, -1.0,  1.0, 
              1.0, -1.0, -1.0,
-            -1.0, -1.0,  1.0, 
-             1.0, -1.0,  1.0,
             // Top
+            -1.0,  1.0, -1.0,
             -1.0,  1.0,  1.0,
+             1.0,  1.0, -1.0, 
              1.0,  1.0,  1.0,
-            -1.0,  1.0, -1.0, 
-             1.0,  1.0, -1.0,
         ];
         
         this.coordArray =
         [
             // Front
-            0, 1, 0,
-            1, 1, 0,
-            0, 0, 0,
-            1, 0, 0,
+            0, 1, 1/16,
+            0, 0, 1/16,
+            1, 1, 1/16,
+            1, 0, 1/16,
             // Back
-            1, 1, 1,
-            0, 1, 1,
-            1, 0, 1,
-            0, 0, 1,
+            1, 1, 15/16,
+            1, 0, 15/16,
+            0, 1, 15/16,
+            0, 0, 15/16,
             // Left
-            0, 1, 1,
-            0, 1, 0,
-            0, 0, 1,
-            0, 0, 0,
+            1/16, 1, 1,
+            1/16, 0, 1,
+            1/16, 1, 0,
+            1/16, 0, 0,
             // Right
-            1, 1, 0,
-            1, 1, 1,
-            1, 0, 0,
-            1, 0, 1,
+            15/16, 1, 0,
+            15/16, 0, 0,
+            15/16, 1, 1,
+            15/16, 0, 1,
             // Bottom
-            0, 0, 0,
-            1, 0, 0,
-            0, 0, 1,
-            1, 0, 1,
+            0, 15/16, 1,
+            0, 15/16, 0,
+            1, 15/16, 1,
+            1, 15/16, 0,
             // Top
-            0, 1, 1,
-            1, 1, 1,
-            0, 1, 0,
-            1, 1, 0,
+            0, 1/16, 0,
+            0, 1/16, 1,
+            1, 1/16, 0,
+            1, 1/16, 1,
         ];
 
         // 頂点配列作成
@@ -256,7 +213,7 @@ const Sprite = class
         // 位置などの初期値
         this.left = 0;
         this.down = 0;
-        this.near = 0;
+        this.near = 5;
         this.width = 0.5;
         this.height = 0.5;
         this.depth = 0.5;
@@ -265,8 +222,44 @@ const Sprite = class
             y : 0,
             z : 0,
         };
-
+        this.perspective = 
+        {
+            far : 1.0,
+            near : 9.0,
+            ratio : 2.0,
+        };
+        this.setScreenPerspective();
         this._updateMatrix();
+    }
+    
+    // スプライト描画
+    draw()
+    {
+        const space = this._space;
+        const ctx = this._ctx;
+
+        if(this.graphic != null)
+        {
+            ctx.activeTexture(ctx.TEXTURE0 + 0);
+            ctx.bindTexture(ctx.TEXTURE_3D, this.graphic._texture);
+            ctx.uniform1i(space.textureLocation, 0);
+        }
+        else return;
+        
+        if(ctx.getProgramParameter(space._program, ctx.LINK_STATUS)) ctx.useProgram(space._program);
+
+		ctx.uniformMatrix4fv(space._mvpMatrixLocation, false, this.mvpMatrix);
+
+        ctx.bindBuffer(ctx.ARRAY_BUFFER, this._vbo);
+        
+        ctx.enableVertexAttribArray(space._positionLocation);
+        ctx.vertexAttribPointer(space._positionLocation, 3, ctx.FLOAT, false, (3 + 3) * 4, 0);
+        
+        ctx.enableVertexAttribArray(space._coordLocation);
+        ctx.vertexAttribPointer(space._coordLocation, 3, ctx.FLOAT, false, (3 + 3) * 4, 3 * 4);
+
+        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, this._ibo);
+        ctx.drawElements(ctx.TRIANGLES, 36, ctx.UNSIGNED_SHORT, 0);
     }
 
     // 行列の更新
@@ -289,6 +282,29 @@ const Sprite = class
         this.mvpMatrix.rotateY(this.radian.y);
         this.mvpMatrix.rotateZ(this.radian.z);
         this.mvpMatrix.scale(this.width, this.height, this.depth);
+    }
+        
+    // 透視投影行列の初期化
+    setScreenPerspective()
+    {
+        const ctx = this._ctx;
+
+        let w, h;
+        if(ctx.canvas.height > ctx.canvas.width)
+        {
+            w = 1;
+            h = ctx.canvas.height / ctx.canvas.width;
+        }
+        else
+        {
+            w = ctx.canvas.width / ctx.canvas.height;
+            h = 1;
+        }
+        this.perspective.left = -w;
+        this.perspective.right = w;
+        this.perspective.bottom = -h;
+        this.perspective.top = h;
+        this._updateMatrix();
     }
 
     // 移動
@@ -318,10 +334,11 @@ const Sprite = class
         this._updateMatrix();
     }
     // 拡縮
-    scale(width, height)
+    scale(width, height, depth)
     {
         this.width = width;
         this.height = height;
+        this.depth = depth;
         this._updateMatrix();
     }
 };
