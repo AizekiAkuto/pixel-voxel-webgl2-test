@@ -16,25 +16,22 @@ const Space = class
         const vertexShaderString =
         `#version 300 es
             layout (location = 0) in vec3 position;
-            layout (location = 1) in vec3 coord3d;
-            layout (location = 2) in vec3 normal;
             
             uniform mat4 modelMatrix;
             uniform mat4 projectionMatrix;
             uniform float perspectiveRatio;
-            out vec3 varCoord3d;
+
             out vec3 varRay;
             out vec3 varPosition;
             
             void main(void)
             {
                 mat4 mvpMatrix = projectionMatrix * modelMatrix;
-                varCoord3d = coord3d;
-                varPosition = position;
                 if(perspectiveRatio > 1.0)
                    varRay = position - ((inverse(modelMatrix) * vec4(0.0, 0.0, 0.0, 1.0))).xyz;
                 else
                    varRay = vec3(0.0, 0.0, 0.0) - ((inverse(modelMatrix) * vec4(0.0, 0.0, 0.0, 1.0))).xyz;
+                varPosition = position;
                 gl_Position = mvpMatrix * vec4(position, 1.0);
             }
         `;
@@ -46,7 +43,6 @@ const Space = class
 
             uniform sampler3D graphic;
 
-            in vec3 varCoord3d;
             in vec3 varRay;
             in vec3 varPosition;
 
@@ -64,29 +60,25 @@ const Space = class
                 vec3 rayAbs = abs(ray); // レイ各要素の絶対値
                 float rayLen = sqrt(rayAbs.x*rayAbs.x + rayAbs.y*rayAbs.y + rayAbs.z*rayAbs.z); // レイの長さ
 
-                vec3 scanSign = sign(ray); // ブロックの走査方向
-                if(scanSign.x == 0.0) scanSign.x = 1.0;
-                if(scanSign.y == 0.0) scanSign.y = 1.0;
-                if(scanSign.z == 0.0) scanSign.z = 1.0;
                 vec3 scanStep; // ブロックの走査方向
-                scanStep.x = scanSign.x;
-                scanStep.y = -scanSign.y;
-                scanStep.z = scanSign.z;
-                vec3 pos;
-                pos.x = (varPosition.x + 1.0) / 2.0 * textureSizeVec3.x;
-                pos.y = (-varPosition.y + 1.0) / 2.0 * textureSizeVec3.y;
-                pos.z = (varPosition.z + 1.0) / 2.0 * textureSizeVec3.z;
-                vec3 currentBlock = floor(pos); // 現在の走査ブロック
-                //if(pos.x >= textureSizeVec3.x && pos.x == currentBlock.x) currentBlock.x--;
-                //if(pos.y >= textureSizeVec3.y && pos.y == currentBlock.y) currentBlock.y--;
-                //if(pos.z >= textureSizeVec3.z && pos.z == currentBlock.z) currentBlock.z--;
+                if(rayPositive.x) scanStep.x = 1.0; else scanStep.x = -1.0; 
+                if(rayPositive.y) scanStep.y = 1.0; else scanStep.y = -1.0;
+                if(rayPositive.z) scanStep.z = 1.0; else scanStep.z = -1.0;
+                vec3 texturePosition; // テクセルに対応した位置
+                texturePosition.x = (varPosition.x + 1.0) / 2.0 * textureSizeVec3.x;
+                texturePosition.y = (-varPosition.y + 1.0) / 2.0 * textureSizeVec3.y;
+                texturePosition.z = (varPosition.z + 1.0) / 2.0 * textureSizeVec3.z;
+                vec3 currentBlock = floor(texturePosition); // 現在の走査ブロック
+                if(texturePosition.x >= textureSizeVec3.x) currentBlock.x--;
+                if(texturePosition.y >= textureSizeVec3.y) currentBlock.y--;
+                if(texturePosition.z >= textureSizeVec3.z) currentBlock.z--;
 
                 vec3 tDelta; // ブロックの走査のため比較する変数の増分
                 if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
                 if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 0.0;
                 if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 0.0;
 
-                vec3 tMax = (currentBlock - pos) * scanStep * tDelta; // ブロックの走査のため比較する変数の総和
+                vec3 tMax = (currentBlock - texturePosition) * scanStep * tDelta; // ブロックの走査のため比較する変数の総和
                 if(rayPositive.x) tMax.x += tDelta.x;
                 if(rayPositive.y) tMax.y += tDelta.y;
                 if(rayPositive.z) tMax.z += tDelta.z;
@@ -110,7 +102,8 @@ const Space = class
                         currentUVW.x >= 1.0 || 
                         currentUVW.y >= 1.0 || 
                         currentUVW.z >= 1.0
-                    ) break;
+                    )
+                        break;
 
                     // 色が見つかったら終わる
                     vec4 color = texture(graphic, currentUVW);
@@ -126,7 +119,7 @@ const Space = class
                             tMax.x += tDelta.x;
                             currentBlock.x += scanStep.x;
                         }
-                        else if(tMax.z < tMax.x)
+                        else if(tMax.z <= tMax.x)
                         {
                             tMax.z += tDelta.z;
                             currentBlock.z += scanStep.z;
@@ -139,7 +132,7 @@ const Space = class
                             tMax.y += tDelta.y;
                             currentBlock.y += scanStep.y;
                         }
-                        else if(tMax.z < tMax.y)
+                        else if(tMax.z <= tMax.y)
                         {
                             tMax.z += tDelta.z;
                             currentBlock.z += scanStep.z;
@@ -189,7 +182,6 @@ const Space = class
         this._projectionMatrixLocation = gl.getUniformLocation(this._program, 'projectionMatrix');
         this._perspectiveRatioLocation = gl.getUniformLocation(this._program, 'perspectiveRatio');
         this._positionLocation = gl.getAttribLocation(this._program, 'position');
-        this._coordLocation = gl.getAttribLocation(this._program, 'coord3d');
     }
 };
 
@@ -240,51 +232,14 @@ const Sprite = class
              1.0,  1.0, -1.0, 
              1.0,  1.0,  1.0,
         ];
-        
-        this.coordArray =
-        [
-            // Front
-            0, 1, 0,
-            0, 0, 0,
-            1, 1, 0,
-            1, 0, 0,
-            // Back
-            1, 1, 1,
-            1, 0, 1,
-            0, 1, 1,
-            0, 0, 1,
-            // Left
-            0, 1, 1,
-            0, 0, 1,
-            0, 1, 0,
-            0, 0, 0,
-            // Right
-            1, 1, 0,
-            1, 0, 0,
-            1, 1, 1,
-            1, 0, 1,
-            // Bottom
-            0, 1, 1,
-            0, 1, 0,
-            1, 1, 1,
-            1, 1, 0,
-            // Top
-            0, 0, 0,
-            0, 0, 1,
-            1, 0, 0,
-            1, 0, 1,
-        ];
 
         // 頂点配列作成
         this.vertexArray = [];
-        for(let i = 0; i < (3 + 3 + 3) * 4; i++)
+        for(let i = 0; i < 6 * 4; i++)
         {
             this.vertexArray.push(this.positionArray[i * 3 + 0]);
             this.vertexArray.push(this.positionArray[i * 3 + 1]);
             this.vertexArray.push(this.positionArray[i * 3 + 2]);
-            this.vertexArray.push(this.coordArray[i * 3 + 0]);
-            this.vertexArray.push(this.coordArray[i * 3 + 1]);
-            this.vertexArray.push(this.coordArray[i * 3 + 2]);
         }
 
         // 頂点バッファーを生成する
@@ -341,9 +296,11 @@ const Sprite = class
             near : 1.0,
             far : 9.0,
             ratio : 4.0,
+            size : 1.0,
         };
         this.setScreenPerspective();
         this._updateMatrix();
+        this.setScreenPerspectiveBind = this.setScreenPerspective.bind(this);
     }
     
     // スプライト描画
@@ -370,10 +327,7 @@ const Sprite = class
         gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
         
         gl.enableVertexAttribArray(space._positionLocation);
-        gl.vertexAttribPointer(space._positionLocation, 3, gl.FLOAT, false, (3 + 3) * 4, 0);
-        
-        gl.enableVertexAttribArray(space._coordLocation);
-        gl.vertexAttribPointer(space._coordLocation, 3, gl.FLOAT, false, (3 + 3) * 4, 3 * 4);
+        gl.vertexAttribPointer(space._positionLocation, 3, gl.FLOAT, false, (3) * 4, 0);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
 
@@ -421,11 +375,32 @@ const Sprite = class
             w = gl.canvas.width / gl.canvas.height;
             h = 1;
         }
+        w *= this.perspective.size;
+        h *= this.perspective.size;
+
         this.perspective.left = -w;
         this.perspective.right = w;
         this.perspective.bottom = -h;
         this.perspective.top = h;
         this._updateMatrix();
+    }
+
+    // 自動リサイズ登録
+    registerAutoResize()
+    {
+        window.addEventListener('resize', this.setScreenPerspectiveBind);
+    }
+
+    // 自動リサイズ解除
+    releaseAutoResize()
+    {
+        window.removeEventListener('resize', this.setScreenPerspectiveBind);
+    }
+
+    // 画面サイズ指定
+    setSize(size)
+    {
+        this.perspective.size = size;
     }
 
     // 移動

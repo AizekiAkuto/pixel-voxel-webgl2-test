@@ -161,9 +161,11 @@ const Sprite = class
             near : 1.0,
             far : 9.0,
             ratio : 1.0,
+            size : 1.0,
         };
         this.setScreenPerspective();
         this._updateMatrix();
+        this.setScreenPerspectiveBind = this.setScreenPerspective.bind(this);
     }
 
     // スプライト描画
@@ -237,11 +239,32 @@ const Sprite = class
             w = gl.canvas.width / gl.canvas.height;
             h = 1;
         }
+        w *= this.perspective.size;
+        h *= this.perspective.size;
+
         this.perspective.left = -w;
         this.perspective.right = w;
         this.perspective.bottom = -h;
         this.perspective.top = h;
         this._updateMatrix();
+    }
+
+    // 自動リサイズ登録
+    registerAutoResize()
+    {
+        window.addEventListener('resize', this.setScreenPerspectiveBind);
+    }
+
+    // 自動リサイズ解除
+    releaseAutoResize()
+    {
+        window.removeEventListener('resize', this.setScreenPerspectiveBind);
+    }
+
+    // 画面サイズ指定
+    setSize(size)
+    {
+        this.perspective.size = size;
     }
 
     // 移動
