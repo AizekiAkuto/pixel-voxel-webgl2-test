@@ -77,9 +77,9 @@ const Space = class
                 pos.y = (-varPosition.y + 1.0) / 2.0 * textureSizeVec3.y;
                 pos.z = (varPosition.z + 1.0) / 2.0 * textureSizeVec3.z;
                 vec3 currentBlock = floor(pos); // 現在の走査ブロック
-                if(currentBlock.x >= textureSizeVec3.x && pos.x == currentBlock.x) currentBlock.x--;
-                if(currentBlock.y >= textureSizeVec3.y && pos.y == currentBlock.y) currentBlock.y--;
-                if(currentBlock.z >= textureSizeVec3.z && pos.z == currentBlock.z) currentBlock.z--;
+                if(pos.x >= textureSizeVec3.x && pos.x == currentBlock.x) currentBlock.x--;
+                if(pos.y >= textureSizeVec3.y && pos.y == currentBlock.y) currentBlock.y--;
+                if(pos.z >= textureSizeVec3.z && pos.z == currentBlock.z) currentBlock.z--;
 
                 vec3 tDelta; // ブロックの走査のため比較する変数の増分
                 if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
