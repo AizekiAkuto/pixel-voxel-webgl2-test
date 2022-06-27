@@ -158,8 +158,8 @@ const Sprite = class
         };
         this.perspective = 
         {
-            far : 1.0,
-            near : 9.0,
+            near : 1.0,
+            far : 9.0,
             ratio : 1.0,
         };
         this.setScreenPerspective();

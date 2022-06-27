@@ -21,20 +21,20 @@ const Space = class
             
             uniform mat4 modelMatrix;
             uniform mat4 projectionMatrix;
+            uniform float perspectiveRatio;
             out vec3 varCoord3d;
             out vec3 varRay;
             out vec3 varPosition;
-            out vec3 varCamera;
-            out vec3 varNormal;
             
             void main(void)
             {
                 mat4 mvpMatrix = projectionMatrix * modelMatrix;
-                varRay = (modelMatrix * vec4(position, 1.0)).xyz - vec3(0.0, 0.0, 0.0);
                 varCoord3d = coord3d;
-                varNormal = normal;
                 varPosition = position;
-                varCamera = position - ((inverse(modelMatrix) * vec4(0.0, 0.0, 0.0, 1.0))).xyz;
+                if(perspectiveRatio > 1.0)
+                   varRay = position - ((inverse(modelMatrix) * vec4(0.0, 0.0, 0.0, 1.0))).xyz;
+                else
+                   varRay = vec3(0.0, 0.0, 0.0) - ((inverse(modelMatrix) * vec4(0.0, 0.0, 0.0, 1.0))).xyz;
                 gl_Position = mvpMatrix * vec4(position, 1.0);
             }
         `;
@@ -43,22 +43,18 @@ const Space = class
         `#version 300 es
             precision mediump sampler3D;
             precision mediump float;
-            
-            uniform mat4 rotationMatrix;
+
             uniform sampler3D graphic;
 
             in vec3 varCoord3d;
             in vec3 varRay;
-            in vec3 varCamera;
-            in vec3 varNormal;
             in vec3 varPosition;
 
             out vec4 outColor;
             
             void main(void)
             {
-                vec3 ray = normalize(varRay); // レイの方向
-                vec3 camera = normalize(varCamera);
+                vec3 camera = normalize(varRay);
                 vec3 textureSizeVec3 = vec3(textureSize(graphic, 0)); // テクスチャのサイズ
 
                 bvec3 cameraPositive; // レイの向きが正か
@@ -83,16 +79,16 @@ const Space = class
                 if(currentBlock.z >= textureSizeVec3.z && pos.z == currentBlock.z) currentBlock.z--;
 
                 vec3 tDelta; // ブロックの走査のため比較する変数の増分
-                if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
-                if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 0.0;
-                if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 0.0;
+                if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 1.0;
+                if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 1.0;
+                if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 1.0;
 
                 vec3 tMax = (currentBlock - pos) * blockStep * tDelta; // ブロックの走査のため比較する変数の総和
                 if(cameraPositive.x) tMax.x += tDelta.x;
                 if(cameraPositive.y) tMax.y += tDelta.y;
                 if(cameraPositive.z) tMax.z += tDelta.z;
                 //tMax = tDelta;
-                if(rayAbs.x == 0.0) tMax.z = 1000000000.0;
+                if(rayAbs.x == 0.0) tMax.x = 1000000000.0;
                 if(rayAbs.y == 0.0) tMax.y = 1000000000.0;
                 if(rayAbs.z == 0.0) tMax.z = 1000000000.0;
 
@@ -149,7 +145,7 @@ const Space = class
                 }
 
                 outColor = rezultColor;
-                //outColor = vec4(camera,1.0);
+                //outColor = varC;
             }
         `;
 
@@ -188,10 +184,9 @@ const Space = class
         this._textureLocation = gl.getUniformLocation(this._program, 'graphic');
         this._modelMatrixLocation = gl.getUniformLocation(this._program, 'modelMatrix');
         this._projectionMatrixLocation = gl.getUniformLocation(this._program, 'projectionMatrix');
-        this._rotationMatrixLocation = gl.getUniformLocation(this._program, 'rotationMatrix');
+        this._perspectiveRatioLocation = gl.getUniformLocation(this._program, 'perspectiveRatio');
         this._positionLocation = gl.getAttribLocation(this._program, 'position');
         this._coordLocation = gl.getAttribLocation(this._program, 'coord3d');
-        this._normalLocation = gl.getAttribLocation(this._program, 'normal');
     }
 };
 
@@ -276,40 +271,6 @@ const Sprite = class
             1, 0, 0,
             1, 0, 1,
         ];
-        
-        this.normalArray =
-        [
-            // Front
-            0, 0, -1,
-            0, 0, -1,
-            0, 0, -1,
-            0, 0, -1,
-            // Back
-            0, 0, 1,
-            0, 0, 1,
-            0, 0, 1,
-            0, 0, 1,
-            // Left
-            -1, 0, 0,
-            -1, 0, 0,
-            -1, 0, 0,
-            -1, 0, 0,
-            // Right
-            1, 0, 0,
-            1, 0, 0,
-            1, 0, 0,
-            1, 0, 0,
-            // Bottom
-            0, -1, 0,
-            0, -1, 0,
-            0, -1, 0,
-            0, -1, 0,
-            // Top
-            0, 1, 0,
-            0, 1, 0,
-            0, 1, 0,
-            0, 1, 0,
-        ];
 
         // 頂点配列作成
         this.vertexArray = [];
@@ -321,9 +282,6 @@ const Sprite = class
             this.vertexArray.push(this.coordArray[i * 3 + 0]);
             this.vertexArray.push(this.coordArray[i * 3 + 1]);
             this.vertexArray.push(this.coordArray[i * 3 + 2]);
-            this.vertexArray.push(this.normalArray[i * 3 + 0]);
-            this.vertexArray.push(this.normalArray[i * 3 + 1]);
-            this.vertexArray.push(this.normalArray[i * 3 + 2]);
         }
 
         // 頂点バッファーを生成する
@@ -377,9 +335,9 @@ const Sprite = class
         };
         this.perspective = 
         {
-            far : 1.0,
-            near : 9.0,
-            ratio : 2.0,
+            near : 1.0,
+            far : 9.0,
+            ratio : 4.0,
         };
         this.setScreenPerspective();
         this._updateMatrix();
@@ -404,18 +362,15 @@ const Sprite = class
 
 		gl.uniformMatrix4fv(space._modelMatrixLocation, false, this.modelMatrix);
 		gl.uniformMatrix4fv(space._projectionMatrixLocation, false, this.projectionMatrix);
-		gl.uniformMatrix4fv(space._rotationMatrixLocation, false, this.rotationMatrix);
+		gl.uniform1f(space._perspectiveRatioLocation, this.perspective.ratio);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
         
         gl.enableVertexAttribArray(space._positionLocation);
-        gl.vertexAttribPointer(space._positionLocation, 3, gl.FLOAT, false, (3 + 3 + 3) * 4, 0);
+        gl.vertexAttribPointer(space._positionLocation, 3, gl.FLOAT, false, (3 + 3) * 4, 0);
         
         gl.enableVertexAttribArray(space._coordLocation);
-        gl.vertexAttribPointer(space._coordLocation, 3, gl.FLOAT, false, (3 + 3 + 3) * 4, 3 * 4);
-        
-        gl.enableVertexAttribArray(space._normalLocation);
-        gl.vertexAttribPointer(space._normalLocation, 3, gl.FLOAT, false, (3 + 3 + 3) * 4, (3 + 3) * 4);
+        gl.vertexAttribPointer(space._coordLocation, 3, gl.FLOAT, false, (3 + 3) * 4, 3 * 4);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
 
@@ -429,7 +384,6 @@ const Sprite = class
     {
         this.projectionMatrix = new Mat4.Mat4();
         this.modelMatrix = new Mat4.Mat4();
-        this.rotationMatrix = new Mat4.Mat4();
 
         this.projectionMatrix.setPerspective(
             this.perspective.left,
@@ -446,10 +400,6 @@ const Sprite = class
         this.modelMatrix.rotateY(this.radian.y);
         this.modelMatrix.rotateZ(this.radian.z);
         this.modelMatrix.scale(this.width, this.height, this.depth);
-        
-        this.rotationMatrix.rotateX(-this.radian.x);
-        this.rotationMatrix.rotateY(-this.radian.y);
-        this.rotationMatrix.rotateZ(-this.radian.z);
     }
         
     // 透視投影行列の初期化
