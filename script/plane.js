@@ -8,8 +8,9 @@ const Plane = class
 {
     constructor(screen)
     {
-        const ctx = screen._ctx;
-        this._ctx = ctx;
+        this._screen = screen;
+        const gl = screen._gl;
+        this._gl = gl;
 
         // 頂点シェーダー
         const vertexShaderString =
@@ -41,41 +42,41 @@ const Plane = class
         `;
 
         // 頂点シェーダーをコンパイル
-        const vertexShader = ctx.createShader(ctx.VERTEX_SHADER);
-        ctx.shaderSource(vertexShader, vertexShaderString);
-        ctx.compileShader(vertexShader);
-        if(ctx.getShaderParameter(vertexShader, ctx.COMPILE_STATUS))
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, vertexShaderString);
+        gl.compileShader(vertexShader);
+        if(gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS))
             this._vertexShader = vertexShader;
         else
-            console.error(ctx.getShaderInfoLog(vertexShader));
+            console.error(gl.getShaderInfoLog(vertexShader));
         
         // フラグメントシェーダーをコンパイル
-        const fragmentShader = ctx.createShader(ctx.FRAGMENT_SHADER);
-        ctx.shaderSource(fragmentShader, fragmentShaderString);
-        ctx.compileShader(fragmentShader);
-        if(ctx.getShaderParameter(fragmentShader, ctx.COMPILE_STATUS))
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, fragmentShaderString);
+        gl.compileShader(fragmentShader);
+        if(gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS))
             this._fragmentShader = fragmentShader;
         else
-            console.error(ctx.getShaderInfoLog(fragmentShader));
+            console.error(gl.getShaderInfoLog(fragmentShader));
         
         // シェーダープログラム
-        const program = ctx.createProgram();
-        ctx.attachShader(program, vertexShader);
-        ctx.attachShader(program, fragmentShader);
-        ctx.linkProgram(program);
-        if(ctx.getProgramParameter(program, ctx.LINK_STATUS))
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        if(gl.getProgramParameter(program, gl.LINK_STATUS))
         {
-            ctx.useProgram(program);
+            gl.useProgram(program);
             this._program = program;
         }
         else
-            console.error(ctx.getProgramInfoLog(program));
+            console.error(gl.getProgramInfoLog(program));
 
         // ロケーションを取得
-        this._textureLocation = ctx.getUniformLocation(this._program, 'graphic');
-        this._mvpMatrixLocation = ctx.getUniformLocation(this._program, 'mvpMatrix');
-        this._positionLocation = ctx.getAttribLocation(this._program, 'position');
-        this._coordLocation = ctx.getAttribLocation(this._program, 'coord2d');
+        this._textureLocation = gl.getUniformLocation(this._program, 'graphic');
+        this._mvpMatrixLocation = gl.getUniformLocation(this._program, 'mvpMatrix');
+        this._positionLocation = gl.getAttribLocation(this._program, 'position');
+        this._coordLocation = gl.getAttribLocation(this._program, 'coord2d');
         
     }
 };
@@ -88,8 +89,9 @@ const Sprite = class
     constructor(plane)
     {
         this._plane = plane;
-        const ctx = plane._ctx;
-        this._ctx = ctx;
+        this._screen = plane._screen;
+        const gl = plane._gl;
+        this._gl = gl;
         this.graphic = null;
 
         // 位置
@@ -122,10 +124,10 @@ const Sprite = class
         }
 
         // 頂点バッファーを生成する
-        const vbo = ctx.createBuffer();
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, vbo);
-        ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array(this.vertexArray), ctx.STATIC_DRAW);
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, null);
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertexArray), gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
         this._vbo = vbo;
 
         // インデクス
@@ -136,10 +138,10 @@ const Sprite = class
         ];
 
         // インデクスバッファーを生成する
-        const ibo = ctx.createBuffer();
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, ibo);
-        ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, new Int16Array(indexArray), ctx.STATIC_DRAW);
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, null);
+        const ibo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indexArray), gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
         this._ibo = ibo;
 
         // 位置などの初期値
@@ -167,31 +169,35 @@ const Sprite = class
     // スプライト描画
     draw()
     {
+        const screen = this._screen;
         const plane = this._plane;
-        const ctx = this._ctx;
+        const gl = this._gl;
 
         if(this.graphic != null)
         {
-            ctx.activeTexture(ctx.TEXTURE0 + 0);
-            ctx.bindTexture(ctx.TEXTURE_2D, this.graphic._texture);
-            ctx.uniform1i(plane.textureLocation, 0);
+            gl.activeTexture(gl.TEXTURE0 + 0);
+            gl.bindTexture(gl.TEXTURE_2D, this.graphic._texture);
+            gl.uniform1i(plane.textureLocation, 0);
         }
         else return;
 
-        if(ctx.getProgramParameter(plane._program, ctx.LINK_STATUS)) ctx.useProgram(plane._program);
+        if(gl.getProgramParameter(plane._program, gl.LINK_STATUS)) gl.useProgram(plane._program);
 
-		ctx.uniformMatrix4fv(plane._mvpMatrixLocation, false, this.mvpMatrix);
+		gl.uniformMatrix4fv(plane._mvpMatrixLocation, false, this.mvpMatrix);
 
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, this._vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
         
-        ctx.enableVertexAttribArray(plane._positionLocation);
-        ctx.vertexAttribPointer(plane._positionLocation, 3, ctx.FLOAT, false, (3 + 2) * 4, 0);
+        gl.enableVertexAttribArray(plane._positionLocation);
+        gl.vertexAttribPointer(plane._positionLocation, 3, gl.FLOAT, false, (3 + 2) * 4, 0);
 
-        ctx.enableVertexAttribArray(plane._coordLocation);
-        ctx.vertexAttribPointer(plane._coordLocation, 2, ctx.FLOAT, false, (3 + 2) * 4, 3 * 4);
+        gl.enableVertexAttribArray(plane._coordLocation);
+        gl.vertexAttribPointer(plane._coordLocation, 2, gl.FLOAT, false, (3 + 2) * 4, 3 * 4);
         
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, this._ibo);
-        ctx.drawElements(ctx.TRIANGLES, 6, ctx.UNSIGNED_SHORT, 0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, screen._frameBuffer);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
     // 行列の更新
@@ -219,16 +225,16 @@ const Sprite = class
     // 平行投影行列の初期化
     setScreenPerspective()
     {
-        const ctx = this._ctx;
+        const gl = this._gl;
         let w, h;
-        if(ctx.canvas.height > ctx.canvas.width)
+        if(gl.canvas.height > gl.canvas.width)
         {
             w = 1;
-            h = ctx.canvas.height / ctx.canvas.width;
+            h = gl.canvas.height / gl.canvas.width;
         }
         else
         {
-            w = ctx.canvas.width / ctx.canvas.height;
+            w = gl.canvas.width / gl.canvas.height;
             h = 1;
         }
         this.perspective.left = -w;
@@ -279,31 +285,31 @@ const Graphic = class
     // 初期化
     constructor(plane)
     {
-        const ctx = plane._ctx;
-        this._ctx = ctx;
+        const gl = plane._gl;
+        this._gl = gl;
 
-        this._texture = ctx.createTexture();
-        ctx.activeTexture(ctx.TEXTURE0 + 0);
-        ctx.bindTexture(ctx.TEXTURE_2D, this._texture);
-        ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
-        ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
-        ctx.bindTexture(ctx.TEXTURE_2D, null);
+        this._texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + 0);
+        gl.bindTexture(gl.TEXTURE_2D, this._texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_2D, null);
     }
 
     // ソーステクスチャ
     /*
     setSource(source)
     {
-        const ctx = this._ctx;
+        const gl = this._gl;
 
         this._image = new Image();
-        //this._location = ctx.getUniformLocation(pix._program, 'texture');
+        //this._location = gl.getUniformLocation(pix._program, 'texture');
         const loadTexture = function()
         {
-            ctx.bindTexture(ctx.TEXTURE_2D, this._texture);
-            ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, ctx.RGBA, ctx.UNSIGNED_BYTE, this._image);
-            ctx.generateMipmap(ctx.TEXTURE_2D);
-            ctx.bindTexture(ctx.TEXTURE_2D, null);
+            gl.bindTexture(gl.TEXTURE_2D, this._texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this._image);
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.bindTexture(gl.TEXTURE_2D, null);
         };
         this._image.addEventListener('load',
             loadTexture.bind(this));
@@ -314,21 +320,21 @@ const Graphic = class
     // データテクスチャ
     setData(width, height, pixel)
     {
-        const ctx = this._ctx;
+        const gl = this._gl;
 
         const texture = this._texture;
-        ctx.bindTexture(ctx.TEXTURE_2D, texture);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
 
         const level = 0;
-        const internalFormat = ctx.RGBA8;
+        const internalFormat = gl.RGBA8;
         const border = 0;
-        const format = ctx.RGBA;
-        const type = ctx.UNSIGNED_BYTE;
+        const format = gl.RGBA;
+        const type = gl.UNSIGNED_BYTE;
         const p8 = new Uint8Array(pixel);
 
-        ctx.texImage2D(ctx.TEXTURE_2D, level, internalFormat, width, height, border, format, type, p8);
-        ctx.generateMipmap(ctx.TEXTURE_2D);
-        ctx.bindTexture(ctx.TEXTURE_2D, null);
+        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, format, type, p8);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
     }
 };
 

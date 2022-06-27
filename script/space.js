@@ -8,20 +8,33 @@ const Space = class
 {
     constructor(screen)
     {
-        const ctx = screen._ctx;
-        this._ctx = ctx;
+        const gl = screen._gl;
+        this._gl = gl;
+        this._screen = screen;
 
         // 頂点シェーダー
         const vertexShaderString =
         `#version 300 es
             layout (location = 0) in vec3 position;
             layout (location = 1) in vec3 coord3d;
-            centroid out vec3 varCoord3d;
-            uniform mat4 mvpMatrix;
+            layout (location = 2) in vec3 normal;
+            
+            uniform mat4 modelMatrix;
+            uniform mat4 projectionMatrix;
+            out vec3 varCoord3d;
+            out vec3 varRay;
+            out vec3 varPosition;
+            out vec3 varCamera;
+            out vec3 varNormal;
             
             void main(void)
             {
+                mat4 mvpMatrix = projectionMatrix * modelMatrix;
+                varRay = (modelMatrix * vec4(position, 1.0)).xyz - vec3(0.0, 0.0, 0.0);
                 varCoord3d = coord3d;
+                varNormal = normal;
+                varPosition = position;
+                varCamera = position - ((inverse(modelMatrix) * vec4(0.0, 0.0, 0.0, 1.0))).xyz;
                 gl_Position = mvpMatrix * vec4(position, 1.0);
             }
         `;
@@ -31,52 +44,154 @@ const Space = class
             precision mediump sampler3D;
             precision mediump float;
             
+            uniform mat4 rotationMatrix;
             uniform sampler3D graphic;
-            centroid in vec3 varCoord3d;
+
+            in vec3 varCoord3d;
+            in vec3 varRay;
+            in vec3 varCamera;
+            in vec3 varNormal;
+            in vec3 varPosition;
+
             out vec4 outColor;
             
             void main(void)
             {
-                outColor = texture(graphic, varCoord3d);
+                vec3 ray = normalize(varRay); // レイの方向
+                vec3 camera = normalize(varCamera);
+                vec3 textureSizeVec3 = vec3(textureSize(graphic, 0)); // テクスチャのサイズ
+
+                bvec3 cameraPositive; // レイの向きが正か
+                cameraPositive.x = (camera.x >= 0.0);
+                cameraPositive.y = (-camera.y >= 0.0);
+                cameraPositive.z = (camera.z >= 0.0);
+                vec3 rayAbs = abs(camera); // レイ各要素の絶対値
+                float rayLen = sqrt(rayAbs.x*rayAbs.x + rayAbs.y*rayAbs.y + rayAbs.z*rayAbs.z); // レイの長さ
+
+                vec3 blockSign = sign(camera); // ブロックの走査方向
+                vec3 blockStep; // ブロックの走査方向
+                blockStep.x = blockSign.x;
+                blockStep.y = -blockSign.y;
+                blockStep.z = blockSign.z;
+                vec3 pos;
+                pos.x = (varPosition.x + 1.0) / 2.0 * textureSizeVec3.x;
+                pos.y = (-varPosition.y + 1.0) / 2.0 * textureSizeVec3.y;
+                pos.z = (varPosition.z + 1.0) / 2.0 * textureSizeVec3.z;
+                vec3 currentBlock = floor(pos); // 現在の走査ブロック
+                if(currentBlock.x >= textureSizeVec3.x && pos.x == currentBlock.x) currentBlock.x--;
+                if(currentBlock.y >= textureSizeVec3.y && pos.y == currentBlock.y) currentBlock.y--;
+                if(currentBlock.z >= textureSizeVec3.z && pos.z == currentBlock.z) currentBlock.z--;
+
+                vec3 tDelta; // ブロックの走査のため比較する変数の増分
+                if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
+                if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 0.0;
+                if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 0.0;
+
+                vec3 tMax = (currentBlock - pos) * blockStep * tDelta; // ブロックの走査のため比較する変数の総和
+                if(cameraPositive.x) tMax.x += tDelta.x;
+                if(cameraPositive.y) tMax.y += tDelta.y;
+                if(cameraPositive.z) tMax.z += tDelta.z;
+                //tMax = tDelta;
+                if(rayAbs.x == 0.0) tMax.z = 1000000000.0;
+                if(rayAbs.y == 0.0) tMax.y = 1000000000.0;
+                if(rayAbs.z == 0.0) tMax.z = 1000000000.0;
+
+                // 走査ループ
+                vec4 rezultColor = vec4(0.0, 0.0, 0.0, 0.0);
+                for(int s = 0; s<256; s++)
+                {
+                    vec3 currentUVW;
+                    currentUVW.x = currentBlock.x / textureSizeVec3.x;
+                    currentUVW.y = currentBlock.y / textureSizeVec3.y;
+                    currentUVW.z = currentBlock.z / textureSizeVec3.z;
+
+                    // ブロックの外に出たら終わり
+                    if(currentUVW.x <  0.0 && blockStep.x < 0.0) break;
+                    if(currentUVW.x >= 1.0 && blockStep.x > 0.0) break;
+                    if(currentUVW.y <  0.0 && blockStep.y < 0.0) break;
+                    if(currentUVW.y >= 1.0 && blockStep.y > 0.0) break;
+                    if(currentUVW.z <  0.0 && blockStep.z < 0.0) break;
+                    if(currentUVW.z >= 1.0 && blockStep.z > 0.0) break;
+
+                    // 色が見つかったら終わる
+                    vec4 color = texture(graphic, currentUVW);
+                    if(color.a >= 0.2){
+                        rezultColor = color;
+                        break;
+                    }
+
+                    if(tMax.x < tMax.y)
+                    {
+                        if(tMax.x < tMax.z)
+                        {
+                            tMax.x += tDelta.x;
+                            currentBlock.x += blockStep.x;
+                        }
+                        else if(tMax.z < tMax.x)
+                        {
+                            tMax.z += tDelta.z;
+                            currentBlock.z += blockStep.z;
+                        }
+                    }
+                    else // tMax.y <= tMax.x
+                    {
+                        if(tMax.y < tMax.z)
+                        {
+                            tMax.y += tDelta.y;
+                            currentBlock.y += blockStep.y;
+                        }
+                        else if(tMax.z < tMax.y)
+                        {
+                            tMax.z += tDelta.z;
+                            currentBlock.z += blockStep.z;
+                        }
+                    }
+                }
+
+                outColor = rezultColor;
+                //outColor = vec4(camera,1.0);
             }
         `;
 
         // 頂点シェーダーをコンパイル
-        const vertexShader = ctx.createShader(ctx.VERTEX_SHADER);
-        ctx.shaderSource(vertexShader, vertexShaderString);
-        ctx.compileShader(vertexShader);
-        if(ctx.getShaderParameter(vertexShader, ctx.COMPILE_STATUS))
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, vertexShaderString);
+        gl.compileShader(vertexShader);
+        if(gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS))
             this._vertexShader = vertexShader;
         else
-            console.error(ctx.getShaderInfoLog(vertexShader));
+            console.error(gl.getShaderInfoLog(vertexShader));
         
         // フラグメントシェーダーをコンパイル
-        const fragmentShader = ctx.createShader(ctx.FRAGMENT_SHADER);
-        ctx.shaderSource(fragmentShader, fragmentShaderString);
-        ctx.compileShader(fragmentShader);
-        if(ctx.getShaderParameter(fragmentShader, ctx.COMPILE_STATUS))
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, fragmentShaderString);
+        gl.compileShader(fragmentShader);
+        if(gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS))
             this._fragmentShader = fragmentShader;
         else
-            console.error(ctx.getShaderInfoLog(fragmentShader));
+            console.error(gl.getShaderInfoLog(fragmentShader));
         
         // シェーダープログラム
-        const program = ctx.createProgram();
-        ctx.attachShader(program, vertexShader);
-        ctx.attachShader(program, fragmentShader);
-        ctx.linkProgram(program);
-        if(ctx.getProgramParameter(program, ctx.LINK_STATUS))
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        if(gl.getProgramParameter(program, gl.LINK_STATUS))
         {
-            ctx.useProgram(program);
+            gl.useProgram(program);
             this._program = program;
         }
         else
-            console.error(ctx.getProgramInfoLog(program));
+            console.error(gl.getProgramInfoLog(program));
 
         // ロケーションを取得
-        this._textureLocation = ctx.getUniformLocation(this._program, 'graphic');
-        this._mvpMatrixLocation = ctx.getUniformLocation(this._program, 'mvpMatrix');
-        this._positionLocation = ctx.getAttribLocation(this._program, 'position');
-        this._coordLocation = ctx.getAttribLocation(this._program, 'coord3d');
+        this._textureLocation = gl.getUniformLocation(this._program, 'graphic');
+        this._modelMatrixLocation = gl.getUniformLocation(this._program, 'modelMatrix');
+        this._projectionMatrixLocation = gl.getUniformLocation(this._program, 'projectionMatrix');
+        this._rotationMatrixLocation = gl.getUniformLocation(this._program, 'rotationMatrix');
+        this._positionLocation = gl.getAttribLocation(this._program, 'position');
+        this._coordLocation = gl.getAttribLocation(this._program, 'coord3d');
+        this._normalLocation = gl.getAttribLocation(this._program, 'normal');
     }
 };
 
@@ -88,8 +203,9 @@ const Sprite = class
     constructor(space)
     {
         this._space = space;
-        const ctx = space._ctx;
-        this._ctx = ctx;
+        this._screen = space._screen;
+        const gl = space._gl;
+        this._gl = gl;
         this.graphic = null;
 
         // 位置
@@ -130,40 +246,74 @@ const Sprite = class
         this.coordArray =
         [
             // Front
-            0, 1, 1/16,
-            0, 0, 1/16,
-            1, 1, 1/16,
-            1, 0, 1/16,
+            0, 1, 0,
+            0, 0, 0,
+            1, 1, 0,
+            1, 0, 0,
             // Back
-            1, 1, 15/16,
-            1, 0, 15/16,
-            0, 1, 15/16,
-            0, 0, 15/16,
+            1, 1, 1,
+            1, 0, 1,
+            0, 1, 1,
+            0, 0, 1,
             // Left
-            1/16, 1, 1,
-            1/16, 0, 1,
-            1/16, 1, 0,
-            1/16, 0, 0,
+            0, 1, 1,
+            0, 0, 1,
+            0, 1, 0,
+            0, 0, 0,
             // Right
-            15/16, 1, 0,
-            15/16, 0, 0,
-            15/16, 1, 1,
-            15/16, 0, 1,
+            1, 1, 0,
+            1, 0, 0,
+            1, 1, 1,
+            1, 0, 1,
             // Bottom
-            0, 15/16, 1,
-            0, 15/16, 0,
-            1, 15/16, 1,
-            1, 15/16, 0,
+            0, 1, 1,
+            0, 1, 0,
+            1, 1, 1,
+            1, 1, 0,
             // Top
-            0, 1/16, 0,
-            0, 1/16, 1,
-            1, 1/16, 0,
-            1, 1/16, 1,
+            0, 0, 0,
+            0, 0, 1,
+            1, 0, 0,
+            1, 0, 1,
+        ];
+        
+        this.normalArray =
+        [
+            // Front
+            0, 0, -1,
+            0, 0, -1,
+            0, 0, -1,
+            0, 0, -1,
+            // Back
+            0, 0, 1,
+            0, 0, 1,
+            0, 0, 1,
+            0, 0, 1,
+            // Left
+            -1, 0, 0,
+            -1, 0, 0,
+            -1, 0, 0,
+            -1, 0, 0,
+            // Right
+            1, 0, 0,
+            1, 0, 0,
+            1, 0, 0,
+            1, 0, 0,
+            // Bottom
+            0, -1, 0,
+            0, -1, 0,
+            0, -1, 0,
+            0, -1, 0,
+            // Top
+            0, 1, 0,
+            0, 1, 0,
+            0, 1, 0,
+            0, 1, 0,
         ];
 
         // 頂点配列作成
         this.vertexArray = [];
-        for(let i = 0; i < 4 * 6; i++)
+        for(let i = 0; i < (3 + 3 + 3) * 4; i++)
         {
             this.vertexArray.push(this.positionArray[i * 3 + 0]);
             this.vertexArray.push(this.positionArray[i * 3 + 1]);
@@ -171,13 +321,16 @@ const Sprite = class
             this.vertexArray.push(this.coordArray[i * 3 + 0]);
             this.vertexArray.push(this.coordArray[i * 3 + 1]);
             this.vertexArray.push(this.coordArray[i * 3 + 2]);
+            this.vertexArray.push(this.normalArray[i * 3 + 0]);
+            this.vertexArray.push(this.normalArray[i * 3 + 1]);
+            this.vertexArray.push(this.normalArray[i * 3 + 2]);
         }
 
         // 頂点バッファーを生成する
-        const vbo = ctx.createBuffer();
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, vbo);
-        ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array(this.vertexArray), ctx.STATIC_DRAW);
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, null);
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertexArray), gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
         this._vbo = vbo;
 
         // インデクス
@@ -204,10 +357,10 @@ const Sprite = class
         ];
 
         // インデクスバッファーを生成する
-        const ibo = ctx.createBuffer();
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, ibo);
-        ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, new Int16Array(indexArray), ctx.STATIC_DRAW);
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, null);
+        const ibo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indexArray), gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
         this._ibo = ibo;
 
         // 位置などの初期値
@@ -235,39 +388,50 @@ const Sprite = class
     // スプライト描画
     draw()
     {
+        const screen = this._screen;
         const space = this._space;
-        const ctx = this._ctx;
+        const gl = this._gl;
 
         if(this.graphic != null)
         {
-            ctx.activeTexture(ctx.TEXTURE0 + 0);
-            ctx.bindTexture(ctx.TEXTURE_3D, this.graphic._texture);
-            ctx.uniform1i(space.textureLocation, 0);
+            gl.activeTexture(gl.TEXTURE0 + 0);
+            gl.bindTexture(gl.TEXTURE_3D, this.graphic._texture);
+            gl.uniform1i(space.textureLocation, 0);
         }
         else return;
         
-        if(ctx.getProgramParameter(space._program, ctx.LINK_STATUS)) ctx.useProgram(space._program);
+        if(gl.getProgramParameter(space._program, gl.LINK_STATUS)) gl.useProgram(space._program);
 
-		ctx.uniformMatrix4fv(space._mvpMatrixLocation, false, this.mvpMatrix);
+		gl.uniformMatrix4fv(space._modelMatrixLocation, false, this.modelMatrix);
+		gl.uniformMatrix4fv(space._projectionMatrixLocation, false, this.projectionMatrix);
+		gl.uniformMatrix4fv(space._rotationMatrixLocation, false, this.rotationMatrix);
 
-        ctx.bindBuffer(ctx.ARRAY_BUFFER, this._vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
         
-        ctx.enableVertexAttribArray(space._positionLocation);
-        ctx.vertexAttribPointer(space._positionLocation, 3, ctx.FLOAT, false, (3 + 3) * 4, 0);
+        gl.enableVertexAttribArray(space._positionLocation);
+        gl.vertexAttribPointer(space._positionLocation, 3, gl.FLOAT, false, (3 + 3 + 3) * 4, 0);
         
-        ctx.enableVertexAttribArray(space._coordLocation);
-        ctx.vertexAttribPointer(space._coordLocation, 3, ctx.FLOAT, false, (3 + 3) * 4, 3 * 4);
+        gl.enableVertexAttribArray(space._coordLocation);
+        gl.vertexAttribPointer(space._coordLocation, 3, gl.FLOAT, false, (3 + 3 + 3) * 4, 3 * 4);
+        
+        gl.enableVertexAttribArray(space._normalLocation);
+        gl.vertexAttribPointer(space._normalLocation, 3, gl.FLOAT, false, (3 + 3 + 3) * 4, (3 + 3) * 4);
 
-        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, this._ibo);
-        ctx.drawElements(ctx.TRIANGLES, 36, ctx.UNSIGNED_SHORT, 0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, screen._frameBuffer);
+        gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
     // 行列の更新
     _updateMatrix()
     {
-        this.mvpMatrix = new Mat4.Mat4();
+        this.projectionMatrix = new Mat4.Mat4();
+        this.modelMatrix = new Mat4.Mat4();
+        this.rotationMatrix = new Mat4.Mat4();
 
-        this.mvpMatrix.setPerspective(
+        this.projectionMatrix.setPerspective(
             this.perspective.left,
             this.perspective.right,
             this.perspective.bottom,
@@ -277,27 +441,31 @@ const Sprite = class
             this.perspective.ratio,
         );
 
-        this.mvpMatrix.translate(this.left, this.down, this.near);
-        this.mvpMatrix.rotateX(this.radian.x);
-        this.mvpMatrix.rotateY(this.radian.y);
-        this.mvpMatrix.rotateZ(this.radian.z);
-        this.mvpMatrix.scale(this.width, this.height, this.depth);
+        this.modelMatrix.translate(this.left, this.down, this.near);
+        this.modelMatrix.rotateX(this.radian.x);
+        this.modelMatrix.rotateY(this.radian.y);
+        this.modelMatrix.rotateZ(this.radian.z);
+        this.modelMatrix.scale(this.width, this.height, this.depth);
+        
+        this.rotationMatrix.rotateX(-this.radian.x);
+        this.rotationMatrix.rotateY(-this.radian.y);
+        this.rotationMatrix.rotateZ(-this.radian.z);
     }
         
     // 透視投影行列の初期化
     setScreenPerspective()
     {
-        const ctx = this._ctx;
+        const gl = this._gl;
 
         let w, h;
-        if(ctx.canvas.height > ctx.canvas.width)
+        if(gl.canvas.height > gl.canvas.width)
         {
             w = 1;
-            h = ctx.canvas.height / ctx.canvas.width;
+            h = gl.canvas.height / gl.canvas.width;
         }
         else
         {
-            w = ctx.canvas.width / ctx.canvas.height;
+            w = gl.canvas.width / gl.canvas.height;
             h = 1;
         }
         this.perspective.left = -w;
@@ -349,35 +517,35 @@ const Graphic = class
     // 初期化
     constructor(space)
     {
-        const ctx = space._ctx;
-        this._ctx = ctx;
+        const gl = space._gl;
+        this._gl = gl;
 
-        this._texture = ctx.createTexture();
-        ctx.activeTexture(ctx.TEXTURE0 + 1);
-        ctx.bindTexture(ctx.TEXTURE_3D, this._texture);
-        ctx.texParameteri(ctx.TEXTURE_3D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
-        ctx.texParameteri(ctx.TEXTURE_3D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
-        ctx.bindTexture(ctx.TEXTURE_3D, null);
+        this._texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + 1);
+        gl.bindTexture(gl.TEXTURE_3D, this._texture);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_3D, null);
     }
 
     // データテクスチャ
     setData(width, height, depth, data)
     {
-        const ctx = this._ctx;
+        const gl = this._gl;
 
         const texture = this._texture;
-        ctx.bindTexture(ctx.TEXTURE_3D, texture);
+        gl.bindTexture(gl.TEXTURE_3D, texture);
 
         const level = 0;
-        const internalFormat = ctx.RGBA8;
+        const internalFormat = gl.RGBA8;
         const border = 0;
-        const format = ctx.RGBA;
-        const type = ctx.UNSIGNED_BYTE;
+        const format = gl.RGBA;
+        const type = gl.UNSIGNED_BYTE;
         const data8 = new Uint8Array(data);
 
-        ctx.texImage3D(ctx.TEXTURE_3D, level, internalFormat, width, height, depth, border, format, type, data8);
-        ctx.generateMipmap(ctx.TEXTURE_3D);
-        ctx.bindTexture(ctx.TEXTURE_3D, null);
+        gl.texImage3D(gl.TEXTURE_3D, level, internalFormat, width, height, depth, border, format, type, data8);
+        gl.generateMipmap(gl.TEXTURE_3D);
+        gl.bindTexture(gl.TEXTURE_3D, null);
     }
 };
 
