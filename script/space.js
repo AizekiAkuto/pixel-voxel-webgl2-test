@@ -54,21 +54,21 @@ const Space = class
             
             void main(void)
             {
-                vec3 camera = normalize(varRay);
+                vec3 ray = normalize(varRay);
                 vec3 textureSizeVec3 = vec3(textureSize(graphic, 0)); // テクスチャのサイズ
 
-                bvec3 cameraPositive; // レイの向きが正か
-                cameraPositive.x = (camera.x >= 0.0);
-                cameraPositive.y = (-camera.y >= 0.0);
-                cameraPositive.z = (camera.z >= 0.0);
-                vec3 rayAbs = abs(camera); // レイ各要素の絶対値
+                bvec3 rayPositive; // レイの向きが正か
+                rayPositive.x = (ray.x >= 0.0);
+                rayPositive.y = (-ray.y >= 0.0);
+                rayPositive.z = (ray.z >= 0.0);
+                vec3 rayAbs = abs(ray); // レイ各要素の絶対値
                 float rayLen = sqrt(rayAbs.x*rayAbs.x + rayAbs.y*rayAbs.y + rayAbs.z*rayAbs.z); // レイの長さ
 
-                vec3 blockSign = sign(camera); // ブロックの走査方向
-                vec3 blockStep; // ブロックの走査方向
-                blockStep.x = blockSign.x;
-                blockStep.y = -blockSign.y;
-                blockStep.z = blockSign.z;
+                vec3 scanSign = sign(ray); // ブロックの走査方向
+                vec3 scanStep; // ブロックの走査方向
+                scanStep.x = scanSign.x;
+                scanStep.y = -scanSign.y;
+                scanStep.z = scanSign.z;
                 vec3 pos;
                 pos.x = (varPosition.x + 1.0) / 2.0 * textureSizeVec3.x;
                 pos.y = (-varPosition.y + 1.0) / 2.0 * textureSizeVec3.y;
@@ -83,11 +83,10 @@ const Space = class
                 if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 1.0;
                 if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 1.0;
 
-                vec3 tMax = (currentBlock - pos) * blockStep * tDelta; // ブロックの走査のため比較する変数の総和
-                if(cameraPositive.x) tMax.x += tDelta.x;
-                if(cameraPositive.y) tMax.y += tDelta.y;
-                if(cameraPositive.z) tMax.z += tDelta.z;
-                //tMax = tDelta;
+                vec3 tMax = (currentBlock - pos) * scanStep * tDelta; // ブロックの走査のため比較する変数の総和
+                if(rayPositive.x) tMax.x += tDelta.x;
+                if(rayPositive.y) tMax.y += tDelta.y;
+                if(rayPositive.z) tMax.z += tDelta.z;
                 if(rayAbs.x == 0.0) tMax.x = 1000000000.0;
                 if(rayAbs.y == 0.0) tMax.y = 1000000000.0;
                 if(rayAbs.z == 0.0) tMax.z = 1000000000.0;
@@ -97,17 +96,18 @@ const Space = class
                 for(int s = 0; s<256; s++)
                 {
                     vec3 currentUVW;
-                    currentUVW.x = currentBlock.x / textureSizeVec3.x;
-                    currentUVW.y = currentBlock.y / textureSizeVec3.y;
-                    currentUVW.z = currentBlock.z / textureSizeVec3.z;
+                    currentUVW = currentBlock / textureSizeVec3;
 
                     // ブロックの外に出たら終わり
-                    if(currentUVW.x <  0.0 && blockStep.x < 0.0) break;
-                    if(currentUVW.x >= 1.0 && blockStep.x > 0.0) break;
-                    if(currentUVW.y <  0.0 && blockStep.y < 0.0) break;
-                    if(currentUVW.y >= 1.0 && blockStep.y > 0.0) break;
-                    if(currentUVW.z <  0.0 && blockStep.z < 0.0) break;
-                    if(currentUVW.z >= 1.0 && blockStep.z > 0.0) break;
+                    if
+                    (
+                        currentUVW.x <  0.0 || 
+                        currentUVW.y <  0.0 || 
+                        currentUVW.z <  0.0 || 
+                        currentUVW.x >= 1.0 || 
+                        currentUVW.y >= 1.0 || 
+                        currentUVW.z >= 1.0
+                    ) break;
 
                     // 色が見つかったら終わる
                     vec4 color = texture(graphic, currentUVW);
@@ -121,12 +121,12 @@ const Space = class
                         if(tMax.x < tMax.z)
                         {
                             tMax.x += tDelta.x;
-                            currentBlock.x += blockStep.x;
+                            currentBlock.x += scanStep.x;
                         }
                         else if(tMax.z < tMax.x)
                         {
                             tMax.z += tDelta.z;
-                            currentBlock.z += blockStep.z;
+                            currentBlock.z += scanStep.z;
                         }
                     }
                     else // tMax.y <= tMax.x
@@ -134,12 +134,12 @@ const Space = class
                         if(tMax.y < tMax.z)
                         {
                             tMax.y += tDelta.y;
-                            currentBlock.y += blockStep.y;
+                            currentBlock.y += scanStep.y;
                         }
                         else if(tMax.z < tMax.y)
                         {
                             tMax.z += tDelta.z;
-                            currentBlock.z += blockStep.z;
+                            currentBlock.z += scanStep.z;
                         }
                     }
                 }

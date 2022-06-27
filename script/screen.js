@@ -137,7 +137,8 @@ const Screen = class
 
         // 画面を消す
         gl.clearColor(0.0, 0.0, 0.0, 0.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+		gl.clearDepth(1.0);
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // ブレンド
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -199,7 +200,7 @@ const Screen = class
     }
 
     // 画面クリア
-    clearCanvas(r, g, b, a)
+    clear(r, g, b, a)
     {
         const gl = this._gl;
         gl.clearColor(r, g, b, a);
@@ -207,7 +208,7 @@ const Screen = class
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     }
 
-    // 画面クリア
+    // フレームクリア
     clearFrame(r, g, b, a)
     {
         const gl = this._gl;
@@ -256,7 +257,7 @@ const Screen = class
     _resize()
     {
         const gl = this._gl;
-        canvas = this._canvas;
+        const canvas = this._canvas;
         
         this.ratio = window.devicePixelRatio || 1;
         this.clientWidth = window.innerWidth;

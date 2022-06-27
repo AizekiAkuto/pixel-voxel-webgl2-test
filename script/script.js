@@ -172,8 +172,8 @@ window.addEventListener('resize', sprite3d.setScreenPerspective.bind(sprite3d));
 // アニメーションループ
 const loop = function ()
 {
+    screen.clear(1.0, 1.0, 1.0, 1.0);
     screen.clearFrame(1.0, 1.0, 1.0, 1.0);
-    screen.clearCanvas(1.0, 1.0, 1.0, 1.0);
 
     // input
     if(screen.pointerDown)
