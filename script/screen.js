@@ -259,7 +259,7 @@ const Screen = class
         const gl = this._gl;
         const canvas = this._canvas;
         
-        this.ratio = 1;// = window.devicePixelRatio || 1;
+        this.ratio = window.devicePixelRatio || 1;
         this.clientWidth = window.innerWidth;
         this.clientHeight = window.innerHeight;
         this.physicalWidth = this.clientWidth * this.ratio;
