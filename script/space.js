@@ -65,6 +65,9 @@ const Space = class
                 float rayLen = sqrt(rayAbs.x*rayAbs.x + rayAbs.y*rayAbs.y + rayAbs.z*rayAbs.z); // レイの長さ
 
                 vec3 scanSign = sign(ray); // ブロックの走査方向
+                if(scanSign.x == 0.0) scanSign.x = 1.0;
+                if(scanSign.y == 0.0) scanSign.y = 1.0;
+                if(scanSign.z == 0.0) scanSign.z = 1.0;
                 vec3 scanStep; // ブロックの走査方向
                 scanStep.x = scanSign.x;
                 scanStep.y = -scanSign.y;
