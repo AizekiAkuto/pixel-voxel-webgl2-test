@@ -79,9 +79,9 @@ const Space = class
                 if(currentBlock.z >= textureSizeVec3.z && pos.z == currentBlock.z) currentBlock.z--;
 
                 vec3 tDelta; // ブロックの走査のため比較する変数の増分
-                if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 1.0;
-                if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 1.0;
-                if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 1.0;
+                if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
+                if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 0.0;
+                if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 0.0;
 
                 vec3 tMax = (currentBlock - pos) * scanStep * tDelta; // ブロックの走査のため比較する変数の総和
                 if(rayPositive.x) tMax.x += tDelta.x;
@@ -93,7 +93,7 @@ const Space = class
 
                 // 走査ループ
                 vec4 rezultColor = vec4(0.0, 0.0, 0.0, 0.0);
-                for(int s = 0; s<256; s++)
+                for(int s = 0; s < 256; s++)
                 {
                     vec3 currentUVW;
                     currentUVW = currentBlock / textureSizeVec3;
