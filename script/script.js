@@ -161,6 +161,7 @@ sprite2d.scale(1/8, 1/8);
 
 sprite3d.translate(0, 0, 2);
 sprite3d.scale(1/4, 1/4, 1/4);
+sprite3d.perspective.ratio = 4;
 
 // 操作の変数
 let px = 0, py = 0;

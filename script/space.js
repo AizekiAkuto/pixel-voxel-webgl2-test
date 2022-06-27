@@ -21,8 +21,8 @@ const Space = class
             uniform mat4 projectionMatrix;
             uniform float perspectiveRatio;
 
-            out vec3 varRay;
-            out vec3 varPosition;
+            centroid out vec3 varRay;
+            centroid out vec3 varPosition;
             
             void main(void)
             {
@@ -43,8 +43,8 @@ const Space = class
 
             uniform sampler3D graphic;
 
-            in vec3 varRay;
-            in vec3 varPosition;
+            centroid in vec3 varRay;
+            centroid in vec3 varPosition;
 
             out vec4 outColor;
             
@@ -53,35 +53,31 @@ const Space = class
                 vec3 ray = normalize(varRay);
                 vec3 textureSizeVec3 = vec3(textureSize(graphic, 0)); // テクスチャのサイズ
 
-                bvec3 rayPositive; // レイの向きが正か
-                rayPositive.x = (ray.x >= 0.0);
-                rayPositive.y = (-ray.y >= 0.0);
-                rayPositive.z = (ray.z >= 0.0);
+                vec3 scanStep; // 走査の方向
+                scanStep.x = sign(ray.x);
+                scanStep.y = -sign(ray.y);
+                scanStep.z = sign(ray.z);
                 vec3 rayAbs = abs(ray); // レイ各要素の絶対値
                 float rayLen = sqrt(rayAbs.x*rayAbs.x + rayAbs.y*rayAbs.y + rayAbs.z*rayAbs.z); // レイの長さ
 
-                vec3 scanStep; // ブロックの走査方向
-                if(rayPositive.x) scanStep.x = 1.0; else scanStep.x = -1.0; 
-                if(rayPositive.y) scanStep.y = 1.0; else scanStep.y = -1.0;
-                if(rayPositive.z) scanStep.z = 1.0; else scanStep.z = -1.0;
                 vec3 texturePosition; // テクセルに対応した位置
                 texturePosition.x = (varPosition.x + 1.0) / 2.0 * textureSizeVec3.x;
                 texturePosition.y = (-varPosition.y + 1.0) / 2.0 * textureSizeVec3.y;
                 texturePosition.z = (varPosition.z + 1.0) / 2.0 * textureSizeVec3.z;
                 vec3 currentBlock = floor(texturePosition); // 現在の走査ブロック
-                if(texturePosition.x >= textureSizeVec3.x) currentBlock.x--;
-                if(texturePosition.y >= textureSizeVec3.y) currentBlock.y--;
-                if(texturePosition.z >= textureSizeVec3.z) currentBlock.z--;
+                if(scanStep.x < 0.0 && texturePosition.x >= textureSizeVec3.x) currentBlock.x--;
+                if(scanStep.y < 0.0 && texturePosition.y >= textureSizeVec3.y) currentBlock.y--;
+                if(scanStep.z < 0.0 && texturePosition.z >= textureSizeVec3.z) currentBlock.z--;
 
                 vec3 tDelta; // ブロックの走査のため比較する変数の増分
-                if(rayAbs.x != 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
-                if(rayAbs.y != 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 0.0;
-                if(rayAbs.z != 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 0.0;
+                if(rayAbs.x > 0.0) tDelta.x = rayLen / rayAbs.x; else tDelta.x = 0.0;
+                if(rayAbs.y > 0.0) tDelta.y = rayLen / rayAbs.y; else tDelta.y = 0.0;
+                if(rayAbs.z > 0.0) tDelta.z = rayLen / rayAbs.z; else tDelta.z = 0.0;
 
                 vec3 tMax = (currentBlock - texturePosition) * scanStep * tDelta; // ブロックの走査のため比較する変数の総和
-                if(rayPositive.x) tMax.x += tDelta.x;
-                if(rayPositive.y) tMax.y += tDelta.y;
-                if(rayPositive.z) tMax.z += tDelta.z;
+                if(scanStep.x >= 0.0) tMax.x += tDelta.x;
+                if(scanStep.y >= 0.0) tMax.y += tDelta.y;
+                if(scanStep.z >= 0.0) tMax.z += tDelta.z;
                 if(rayAbs.x == 0.0) tMax.x = 1000000000.0;
                 if(rayAbs.y == 0.0) tMax.y = 1000000000.0;
                 if(rayAbs.z == 0.0) tMax.z = 1000000000.0;
@@ -93,15 +89,15 @@ const Space = class
                     vec3 currentUVW;
                     currentUVW = currentBlock / textureSizeVec3;
 
-                    // ブロックの外に出たら終わり
+                    // 領域の外に出たら終わる
                     if
                     (
-                        currentUVW.x <  0.0 || 
-                        currentUVW.y <  0.0 || 
-                        currentUVW.z <  0.0 || 
-                        currentUVW.x >= 1.0 || 
-                        currentUVW.y >= 1.0 || 
-                        currentUVW.z >= 1.0
+                        currentUVW.x <  0.0 && scanStep.x < 0.0 ||
+                        currentUVW.x >= 1.0 && scanStep.x > 0.0  || 
+                        currentUVW.y <  0.0 && scanStep.y < 0.0  || 
+                        currentUVW.y >= 1.0 && scanStep.y > 0.0  || 
+                        currentUVW.z <  0.0 && scanStep.z < 0.0  || 
+                        currentUVW.z >= 1.0 && scanStep.z > 0.0 
                     )
                         break;
 
@@ -109,6 +105,7 @@ const Space = class
                     vec4 color = texture(graphic, currentUVW);
                     if(color.a >= 0.2){
                         rezultColor = color;
+                        //rezultColor = vec4(0.0, 0.0, 0.0, 1.0);
                         break;
                     }
 
@@ -119,7 +116,7 @@ const Space = class
                             tMax.x += tDelta.x;
                             currentBlock.x += scanStep.x;
                         }
-                        else if(tMax.z <= tMax.x)
+                        else // tMax.z <= tMax.x
                         {
                             tMax.z += tDelta.z;
                             currentBlock.z += scanStep.z;
@@ -132,7 +129,7 @@ const Space = class
                             tMax.y += tDelta.y;
                             currentBlock.y += scanStep.y;
                         }
-                        else if(tMax.z <= tMax.y)
+                        else // tMax.z <= tMax.y
                         {
                             tMax.z += tDelta.z;
                             currentBlock.z += scanStep.z;
