@@ -83,7 +83,7 @@ const Space = class
                 if(rayAbs.z == 0.0) tMax.z = 1000000000.0;
 
                 // 走査ループ
-                vec4 rezultColor = vec4(0.0, 0.0, 0.0, 0.0);
+                vec4 rezultColor = vec4(0.8, 0.8, 0.8, 1.0);
                 for(int s = 0; s < 256; s++)
                 {
                     vec3 currentUVW;
